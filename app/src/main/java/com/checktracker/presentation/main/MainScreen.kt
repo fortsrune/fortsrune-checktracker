@@ -2,6 +2,8 @@ package com.checktracker.presentation.main
 
 import android.content.Context
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -35,6 +37,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -77,9 +80,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.checktracker.core.formatMoney
+import com.checktracker.domain.model.Account
 import com.checktracker.domain.model.Category
 import com.checktracker.domain.model.CurrencyOption
 import com.checktracker.domain.model.Expense
+import com.checktracker.domain.model.StatementTransaction
 import com.checktracker.presentation.theme.HeaderGradient
 import com.checktracker.presentation.theme.categoryColor
 import java.io.File
@@ -107,6 +112,17 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
     var showAccountsDialog by rememberSaveable { mutableStateOf(false) }
     var showBudgetDialog by rememberSaveable { mutableStateOf(false) }
     var showCurrencyDialog by rememberSaveable { mutableStateOf(false) }
+    val statementPreview by viewModel.statementPreview.collectAsStateWithLifecycle()
+
+    // Выбор файла выписки: читаем текст и передаём в ViewModel на разбор
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val text = runCatching {
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            }.getOrNull()
+            if (text != null) viewModel.parseStatement(text)
+        }
+    }
 
     LaunchedEffect(state.error) {
         state.error?.let {
@@ -131,6 +147,12 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                     }
                     IconButton(onClick = { showCurrencyDialog = true }) {
                         Icon(Icons.Default.CurrencyExchange, contentDescription = "Валюта",
+                            tint = MaterialTheme.colorScheme.primary)
+                    }
+                    IconButton(onClick = {
+                        importLauncher.launch(arrayOf("*/*"))
+                    }) {
+                        Icon(Icons.Default.UploadFile, contentDescription = "Импорт выписки",
                             tint = MaterialTheme.colorScheme.primary)
                     }
                     IconButton(onClick = {
@@ -235,6 +257,15 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
             current = state.displayCurrency,
             onSelect = viewModel::setDisplayCurrency,
             onDismiss = { showCurrencyDialog = false },
+        )
+    }
+
+    if (statementPreview.isNotEmpty()) {
+        ImportPreviewDialog(
+            transactions = statementPreview,
+            accounts = state.accounts,
+            onDismiss = viewModel::dismissStatementPreview,
+            onConfirm = viewModel::confirmStatementImport,
         )
     }
 }
@@ -974,6 +1005,104 @@ private fun CurrencyDialog(
             }
         },
         confirmButton = {},
+    )
+}
+
+// Диалог предпросмотра выписки: показываем найденные операции, выбираем счёт и подтверждаем импорт
+@Composable
+private fun ImportPreviewDialog(
+    transactions: List<StatementTransaction>,
+    accounts: List<Account>,
+    onDismiss: () -> Unit,
+    onConfirm: (accountId: Long) -> Unit,
+) {
+    var selectedAccountId by rememberSaveable { mutableStateOf(accounts.firstOrNull()?.id ?: 0L) }
+    val dateFormat = SimpleDateFormat("d MMMM", Locale("ru"))
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Импорт выписки", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    "Найдено операций: ${transactions.size}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                // Суммы по валютам, т.к. в выписке могут быть операции в разных валютах
+                transactions.groupBy { it.currency }
+                    .mapValues { (_, list) -> list.sumOf { it.amountMinor } }
+                    .forEach { (currency, sum) ->
+                        Text(
+                            "Сумма: ${formatMoney(sum, currency)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                if (accounts.isNotEmpty()) {
+                    Text("Счёт", style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        accounts.forEach { account ->
+                            FilterChip(
+                                selected = selectedAccountId == account.id,
+                                onClick = { selectedAccountId = account.id },
+                                label = { Text(account.name) },
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider()
+                Text("Операции", style = MaterialTheme.typography.labelLarge)
+                transactions.take(8).forEach { transaction ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                            Text(
+                                transaction.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                            )
+                            Text(
+                                dateFormat.format(Date(transaction.timestamp)),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            formatMoney(transaction.amountMinor, transaction.currency),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+                if (transactions.size > 8) {
+                    Text(
+                        "…и ещё ${transactions.size - 8}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(selectedAccountId) },
+                enabled = accounts.isNotEmpty(),
+            ) { Text("Импортировать") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
 

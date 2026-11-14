@@ -8,6 +8,7 @@ import com.checktracker.domain.model.Account
 import com.checktracker.domain.model.Category
 import com.checktracker.domain.model.CurrencyOption
 import com.checktracker.domain.model.Expense
+import com.checktracker.domain.model.StatementTransaction
 import com.checktracker.domain.usecase.AddAccountUseCase
 import com.checktracker.domain.usecase.AddCategoryUseCase
 import com.checktracker.domain.usecase.AddExpenseUseCase
@@ -17,7 +18,9 @@ import com.checktracker.domain.usecase.ObserveAccountsUseCase
 import com.checktracker.domain.usecase.ObserveBudgetUseCase
 import com.checktracker.domain.usecase.ObserveCategoriesUseCase
 import com.checktracker.domain.usecase.ObserveCurrencyUseCase
+import com.checktracker.domain.usecase.ImportStatementUseCase
 import com.checktracker.domain.usecase.ObserveExpensesUseCase
+import com.checktracker.domain.usecase.ParseStatementUseCase
 import com.checktracker.domain.usecase.RefreshRatesUseCase
 import com.checktracker.domain.usecase.SetBudgetUseCase
 import com.checktracker.domain.usecase.SetCurrencyUseCase
@@ -43,6 +46,8 @@ class MainViewModel(
     private val setBudgetUseCase: SetBudgetUseCase,
     private val refreshRatesUseCase: RefreshRatesUseCase,
     private val exportExpensesUseCase: ExportExpensesUseCase,
+    private val parseStatementUseCase: ParseStatementUseCase,
+    private val importStatementUseCase: ImportStatementUseCase,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MainUiState())
@@ -53,6 +58,10 @@ class MainViewModel(
     private val selectedAccountFlow = MutableStateFlow<Long?>(null)
     private val selectedCategoryFlow = MutableStateFlow<Long?>(null)
     private val ratesFlow = MutableStateFlow(FALLBACK_RATES)
+
+    // Предпросмотр операций выписки до подтверждения импорта
+    private val _statementPreview = MutableStateFlow<List<StatementTransaction>>(emptyList())
+    val statementPreview: StateFlow<List<StatementTransaction>> = _statementPreview.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -140,6 +149,37 @@ class MainViewModel(
 
     // Экспорт всех расходов в CSV
     suspend fun exportCsv(): Result<String> = exportExpensesUseCase()
+
+    // Разбираем текст выписки и показываем предпросмотр найденных расходов
+    fun parseStatement(text: String) {
+        parseStatementUseCase(text)
+            .onSuccess { transactions ->
+                if (transactions.isEmpty()) {
+                    _state.update { it.copy(error = "Не удалось найти расходы в выписке") }
+                } else {
+                    _statementPreview.value = transactions
+                }
+            }
+            .onFailure { error -> _state.update { it.copy(error = error.message) } }
+    }
+
+    // Подтверждение импорта: сохраняем операции на выбранный счёт
+    fun confirmStatementImport(accountId: Long) {
+        val transactions = _statementPreview.value
+        if (transactions.isEmpty()) return
+        viewModelScope.launch {
+            importStatementUseCase(transactions, accountId, _state.value.categories)
+                .onSuccess { imported ->
+                    _statementPreview.value = emptyList()
+                    _state.update { it.copy(error = "Импортировано операций: $imported") }
+                }
+                .onFailure { error -> _state.update { it.copy(error = error.message) } }
+        }
+    }
+
+    fun dismissStatementPreview() {
+        _statementPreview.value = emptyList()
+    }
 
     fun dismissError() = _state.update { it.copy(error = null) }
 

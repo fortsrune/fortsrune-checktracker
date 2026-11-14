@@ -5,11 +5,13 @@ import com.checktracker.domain.usecase.AddCategoryUseCase
 import com.checktracker.domain.usecase.AddExpenseUseCase
 import com.checktracker.domain.usecase.DeleteExpenseUseCase
 import com.checktracker.domain.usecase.ExportExpensesUseCase
+import com.checktracker.domain.usecase.ImportStatementUseCase
 import com.checktracker.domain.usecase.ObserveAccountsUseCase
 import com.checktracker.domain.usecase.ObserveBudgetUseCase
 import com.checktracker.domain.usecase.ObserveCategoriesUseCase
 import com.checktracker.domain.usecase.ObserveCurrencyUseCase
 import com.checktracker.domain.usecase.ObserveExpensesUseCase
+import com.checktracker.domain.usecase.ParseStatementUseCase
 import com.checktracker.domain.usecase.RefreshRatesUseCase
 import com.checktracker.domain.usecase.SetBudgetUseCase
 import com.checktracker.domain.usecase.SetCurrencyUseCase
@@ -32,6 +34,8 @@ val domainModule = module {
     factory { ObserveBudgetUseCase(get()) }
     factory { SetBudgetUseCase(get()) }
     factory { ExportExpensesUseCase(get(), get(), get()) }
+    factory { ParseStatementUseCase() }
+    factory { ImportStatementUseCase(get()) }
 }
 
 val viewModelModule = module {
