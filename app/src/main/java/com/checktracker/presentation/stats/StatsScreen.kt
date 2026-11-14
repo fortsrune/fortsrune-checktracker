@@ -186,7 +186,6 @@ private fun CategoryBreakdown(
                 ) {
                     Text(category.emoji, fontSize = 16.sp)
                 }
-                Spacer(Modifier.width(0.dp))
                 Column(
                     modifier = Modifier
                         .weight(1f)
