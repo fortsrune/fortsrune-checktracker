@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.checktracker.core.formatMoney
 import com.checktracker.domain.model.Category
-import com.checktracker.presentation.theme.color
+import com.checktracker.presentation.theme.categoryColor
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -181,7 +181,7 @@ private fun CategoryBreakdown(
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(category.color.copy(alpha = 0.16f))
+                        .background(categoryColor(category).copy(alpha = 0.16f))
                         .padding(8.dp),
                 ) {
                     Text(category.emoji, fontSize = 16.sp)
@@ -195,7 +195,7 @@ private fun CategoryBreakdown(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text(category.label, style = MaterialTheme.typography.bodyMedium)
+                        Text(category.name, style = MaterialTheme.typography.bodyMedium)
                         Text(
                             "${(share * 100).toInt()}%",
                             style = MaterialTheme.typography.bodySmall,
@@ -209,14 +209,14 @@ private fun CategoryBreakdown(
                             .fillMaxWidth()
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(category.color.copy(alpha = 0.15f)),
+                            .background(categoryColor(category).copy(alpha = 0.15f)),
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(share)
                                 .height(8.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(category.color),
+                                .background(categoryColor(category)),
                         )
                     }
                 }

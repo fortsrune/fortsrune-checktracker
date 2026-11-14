@@ -15,6 +15,8 @@ class ExpenseRepositoryImpl(
     override fun observeExpenses(from: Long, to: Long): Flow<List<Expense>> =
         dao.observeBetween(from, to).map { list -> list.map { it.toDomain() } }
 
+    override suspend fun getAllOnce(): List<Expense> = dao.getAllOnce().map { it.toDomain() }
+
     override suspend fun addExpense(expense: Expense) {
         dao.insert(expense.toEntity())
     }

@@ -13,6 +13,9 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses WHERE timestamp BETWEEN :from AND :to ORDER BY timestamp DESC")
     fun observeBetween(from: Long, to: Long): Flow<List<ExpenseEntity>>
 
+    @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
+    suspend fun getAllOnce(): List<ExpenseEntity>
+
     @Insert
     suspend fun insert(expense: ExpenseEntity): Long
 

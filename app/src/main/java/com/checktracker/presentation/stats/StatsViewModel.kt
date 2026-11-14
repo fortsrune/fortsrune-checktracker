@@ -7,6 +7,7 @@ import com.checktracker.core.convertMinor
 import com.checktracker.domain.model.Category
 import com.checktracker.domain.model.CurrencyOption
 import com.checktracker.domain.model.Expense
+import com.checktracker.domain.usecase.ObserveCategoriesUseCase
 import com.checktracker.domain.usecase.ObserveCurrencyUseCase
 import com.checktracker.domain.usecase.ObserveExpensesUseCase
 import com.checktracker.domain.usecase.RefreshRatesUseCase
@@ -14,9 +15,11 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 // Период аналитики: неделя или месяц
@@ -41,75 +44,76 @@ data class StatsUiState(
 )
 
 class StatsViewModel(
-    private val observeExpensesUseCase: ObserveExpensesUseCase,
-    private val observeCurrencyUseCase: ObserveCurrencyUseCase,
-    private val refreshRatesUseCase: RefreshRatesUseCase,
+    observeExpensesUseCase: ObserveExpensesUseCase,
+    observeCategoriesUseCase: ObserveCategoriesUseCase,
+    observeCurrencyUseCase: ObserveCurrencyUseCase,
+    refreshRatesUseCase: RefreshRatesUseCase,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(StatsUiState())
-    val state: StateFlow<StatsUiState> = _state.asStateFlow()
+    private val period = MutableStateFlow(StatsPeriod.WEEK)
+    private val rates = MutableStateFlow(FALLBACK_RATES)
 
-    private var period = StatsPeriod.WEEK
-    private var cachedExpenses: List<Expense> = emptyList()
-    private var rates: Map<String, Double> = emptyMap()
-    private var displayCurrency = CurrencyOption.BYN
+    // Общий поток состояния: пересчитывается при изменении любых входных данных
+    private val stateFlow: StateFlow<StatsUiState> = combine(
+        observeExpensesUseCase(periodStart(), Long.MAX_VALUE),
+        observeCategoriesUseCase(),
+        observeCurrencyUseCase(),
+        rates,
+        period,
+    ) { expenses, categories, currency, currentRates, currentPeriod ->
+        buildState(expenses, categories, currency, currentRates, currentPeriod)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = StatsUiState(),
+    )
+
+    val state: StateFlow<StatsUiState> = stateFlow
 
     init {
         viewModelScope.launch {
-            observeCurrencyUseCase().collect { currency ->
-                displayCurrency = currency
-                recompute()
-            }
-        }
-        viewModelScope.launch {
             refreshRatesUseCase().onSuccess { newRates ->
-                rates = newRates
-                recompute()
-            }.onFailure {
-                recompute()
+                rates.value = newRates
             }
         }
-        selectPeriod(StatsPeriod.WEEK)
     }
 
-    // Переключение периода перезапускает подписку на данные из БД
+    // Переключение периода аналитики
     fun selectPeriod(newPeriod: StatsPeriod) {
-        period = newPeriod
-        viewModelScope.launch {
-            observeExpensesUseCase(periodStart(newPeriod), Long.MAX_VALUE).collect { expenses ->
-                cachedExpenses = expenses
-                recompute()
-            }
-        }
+        period.value = newPeriod
     }
 
-    // Пересчитываем статистику в выбранную валюту
-    private fun recompute() {
-        val effectiveRates = rates.ifEmpty { FALLBACK_RATES }
-        val converted = cachedExpenses.map { expense ->
+    private fun buildState(
+        expenses: List<Expense>,
+        categories: List<Category>,
+        currency: CurrencyOption,
+        currentRates: Map<String, Double>,
+        currentPeriod: StatsPeriod,
+    ): StatsUiState {
+        // Переводим все расходы в выбранную валюту
+        val converted = expenses.map { expense ->
             expense.copy(
                 amountMinor = convertMinor(
                     amountMinor = expense.amountMinor,
                     from = expense.currency,
-                    to = displayCurrency.code,
-                    rates = effectiveRates,
+                    to = currency.code,
+                    rates = currentRates,
                 ),
             )
         }
-        _state.update {
-            StatsUiState(
-                period = period,
-                displayCurrency = displayCurrency,
-                totalMinor = converted.sumOf { e -> e.amountMinor },
-                byCategory = converted
-                    .groupBy { e -> e.category }
-                    .mapValues { (_, list) -> list.sumOf { e -> e.amountMinor } }
-                    .entries
-                    .sortedByDescending { it.value }
-                    .map { it.key to it.value },
-                dailyTotals = buildDailyTotals(converted, period),
-            )
-        }
+        val categoryById = categories.associateBy { it.id }
+        return StatsUiState(
+            period = currentPeriod,
+            displayCurrency = currency,
+            totalMinor = converted.sumOf { it.amountMinor },
+            byCategory = converted
+                .groupBy { it.categoryId }
+                .mapValues { (_, list) -> list.sumOf { it.amountMinor } }
+                .entries
+                .sortedByDescending { it.value }
+                .map { (id, sum) -> (categoryById[id] ?: Category(id, "Без категории", "📦")) to sum },
+            dailyTotals = buildDailyTotals(converted, currentPeriod),
+        )
     }
 
     // Готовим ряд «день → сумма» от начала периода до сегодня включительно
@@ -135,7 +139,7 @@ class StatsViewModel(
             val dayEnd = dayStart + dayMillis
             val total = expenses
                 .filter { it.timestamp >= dayStart && it.timestamp < dayEnd }
-                .sumOf { e -> e.amountMinor }
+                .sumOf { it.amountMinor }
             result += DailyTotal(dayLabel = labelFormat.format(calendar.time), totalMinor = total)
             calendar.add(Calendar.DAY_OF_MONTH, 1)
         }

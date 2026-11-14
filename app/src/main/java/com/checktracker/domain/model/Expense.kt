@@ -5,6 +5,7 @@ data class Expense(
     val merchant: String,
     val amountMinor: Long,
     val currency: String,
-    val category: Category,
+    val categoryId: Long,
+    val accountId: Long,
     val timestamp: Long,
 )
