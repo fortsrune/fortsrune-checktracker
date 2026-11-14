@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             CheckTrackerTheme {
-                CheckTrackerApp()
+                CheckTrackerRoot()
             }
         }
     }
@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
 
 // Нижняя навигация между списком чеков и аналитикой
 @Composable
-private fun CheckTrackerApp() {
+private fun CheckTrackerRoot() {
     var showStats by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(

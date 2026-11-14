@@ -37,8 +37,8 @@ class MainViewModel(
                             .filter { e -> e.timestamp >= startOfWeek() }
                             .sumOf { e -> e.amountMinor },
                         byCategory = expenses
-                            .groupingBy { e -> e.category }
-                            .eachSumOf { e -> e.amountMinor },
+                            .groupBy { e -> e.category }
+                            .mapValues { (_, list) -> list.sumOf { e -> e.amountMinor } },
                     )
                 }
             }

@@ -54,8 +54,8 @@ class StatsViewModel(
                         period = newPeriod,
                         totalMinor = expenses.sumOf { e -> e.amountMinor },
                         byCategory = expenses
-                            .groupingBy { e -> e.category }
-                            .eachSumOf { e -> e.amountMinor }
+                            .groupBy { e -> e.category }
+                            .mapValues { (_, list) -> list.sumOf { e -> e.amountMinor } }
                             .entries
                             .sortedByDescending { it.value }
                             .map { it.key to it.value },
