@@ -1,17 +1,14 @@
 package com.checktracker.presentation.main
 
-import com.checktracker.domain.model.Category
+import com.checktracker.domain.model.CurrencyOption
 import com.checktracker.domain.model.Expense
 
 data class MainUiState(
     val loading: Boolean = true,
     val expenses: List<Expense> = emptyList(),
+    val displayCurrency: CurrencyOption = CurrencyOption.BYN,
     val monthTotalMinor: Long = 0L,
     val weekTotalMinor: Long = 0L,
-    val byCategory: Map<Category, Long> = emptyMap(),
-    val rates: Map<String, Double> = emptyMap(),
+    val todayTotalMinor: Long = 0L,
     val error: String? = null,
-) {
-    val monthTotalUsd: Double?
-        get() = rates["USD"]?.takeIf { it > 0 }?.let { (monthTotalMinor / 100.0) / it }
-}
+)

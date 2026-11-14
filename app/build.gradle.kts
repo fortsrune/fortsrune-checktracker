@@ -59,5 +59,6 @@ dependencies {
     implementation("io.insert-koin:koin-androidx-compose:$koin")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.core:core-ktx:1.15.0")
 }

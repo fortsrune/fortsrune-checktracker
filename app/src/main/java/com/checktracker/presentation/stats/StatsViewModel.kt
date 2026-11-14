@@ -2,9 +2,14 @@ package com.checktracker.presentation.stats
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.checktracker.core.FALLBACK_RATES
+import com.checktracker.core.convertMinor
 import com.checktracker.domain.model.Category
+import com.checktracker.domain.model.CurrencyOption
 import com.checktracker.domain.model.Expense
+import com.checktracker.domain.usecase.ObserveCurrencyUseCase
 import com.checktracker.domain.usecase.ObserveExpensesUseCase
+import com.checktracker.domain.usecase.RefreshRatesUseCase
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -28,6 +33,7 @@ data class DailyTotal(
 
 data class StatsUiState(
     val period: StatsPeriod = StatsPeriod.WEEK,
+    val displayCurrency: CurrencyOption = CurrencyOption.BYN,
     val totalMinor: Long = 0L,
     // Суммы по категориям, отсортированы по убыванию
     val byCategory: List<Pair<Category, Long>> = emptyList(),
@@ -36,33 +42,73 @@ data class StatsUiState(
 
 class StatsViewModel(
     private val observeExpensesUseCase: ObserveExpensesUseCase,
+    private val observeCurrencyUseCase: ObserveCurrencyUseCase,
+    private val refreshRatesUseCase: RefreshRatesUseCase,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(StatsUiState())
     val state: StateFlow<StatsUiState> = _state.asStateFlow()
 
+    private var period = StatsPeriod.WEEK
+    private var cachedExpenses: List<Expense> = emptyList()
+    private var rates: Map<String, Double> = emptyMap()
+    private var displayCurrency = CurrencyOption.BYN
+
     init {
+        viewModelScope.launch {
+            observeCurrencyUseCase().collect { currency ->
+                displayCurrency = currency
+                recompute()
+            }
+        }
+        viewModelScope.launch {
+            refreshRatesUseCase().onSuccess { newRates ->
+                rates = newRates
+                recompute()
+            }.onFailure {
+                recompute()
+            }
+        }
         selectPeriod(StatsPeriod.WEEK)
     }
 
     // Переключение периода перезапускает подписку на данные из БД
     fun selectPeriod(newPeriod: StatsPeriod) {
+        period = newPeriod
         viewModelScope.launch {
             observeExpensesUseCase(periodStart(newPeriod), Long.MAX_VALUE).collect { expenses ->
-                _state.update {
-                    StatsUiState(
-                        period = newPeriod,
-                        totalMinor = expenses.sumOf { e -> e.amountMinor },
-                        byCategory = expenses
-                            .groupBy { e -> e.category }
-                            .mapValues { (_, list) -> list.sumOf { e -> e.amountMinor } }
-                            .entries
-                            .sortedByDescending { it.value }
-                            .map { it.key to it.value },
-                        dailyTotals = buildDailyTotals(expenses, newPeriod),
-                    )
-                }
+                cachedExpenses = expenses
+                recompute()
             }
+        }
+    }
+
+    // Пересчитываем статистику в выбранную валюту
+    private fun recompute() {
+        val effectiveRates = rates.ifEmpty { FALLBACK_RATES }
+        val converted = cachedExpenses.map { expense ->
+            expense.copy(
+                amountMinor = convertMinor(
+                    amountMinor = expense.amountMinor,
+                    from = expense.currency,
+                    to = displayCurrency.code,
+                    rates = effectiveRates,
+                ),
+            )
+        }
+        _state.update {
+            StatsUiState(
+                period = period,
+                displayCurrency = displayCurrency,
+                totalMinor = converted.sumOf { e -> e.amountMinor },
+                byCategory = converted
+                    .groupBy { e -> e.category }
+                    .mapValues { (_, list) -> list.sumOf { e -> e.amountMinor } }
+                    .entries
+                    .sortedByDescending { it.value }
+                    .map { it.key to it.value },
+                dailyTotals = buildDailyTotals(converted, period),
+            )
         }
     }
 

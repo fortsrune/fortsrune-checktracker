@@ -2,8 +2,10 @@ package com.checktracker.di
 
 import com.checktracker.domain.usecase.AddExpenseUseCase
 import com.checktracker.domain.usecase.DeleteExpenseUseCase
+import com.checktracker.domain.usecase.ObserveCurrencyUseCase
 import com.checktracker.domain.usecase.ObserveExpensesUseCase
 import com.checktracker.domain.usecase.RefreshRatesUseCase
+import com.checktracker.domain.usecase.SetCurrencyUseCase
 import com.checktracker.presentation.main.MainViewModel
 import com.checktracker.presentation.stats.StatsViewModel
 import org.koin.core.module.dsl.viewModelOf
@@ -14,6 +16,8 @@ val domainModule = module {
     factory { AddExpenseUseCase(get()) }
     factory { DeleteExpenseUseCase(get()) }
     factory { RefreshRatesUseCase(get()) }
+    factory { ObserveCurrencyUseCase(get()) }
+    factory { SetCurrencyUseCase(get()) }
 }
 
 val viewModelModule = module {

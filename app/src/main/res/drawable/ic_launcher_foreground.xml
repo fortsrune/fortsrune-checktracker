@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Белый чек с зубчатым нижним краем -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,30 L70,30 A4,4 0 0 1 74,34 L74,76 L68,72 L62,76 L56,72 L50,76 L44,72 L38,76 L34,76 L34,34 A4,4 0 0 1 38,30 Z" />
+    <!-- Строки чека -->
+    <path
+        android:fillColor="#00695C"
+        android:pathData="M42,40 L66,40 A2,2 0 0 1 68,42 A2,2 0 0 1 66,44 L42,44 A2,2 0 0 1 40,42 A2,2 0 0 1 42,40 Z" />
+    <path
+        android:fillColor="#00695C"
+        android:pathData="M42,50 L66,50 A2,2 0 0 1 68,52 A2,2 0 0 1 66,54 L42,54 A2,2 0 0 1 40,52 A2,2 0 0 1 42,50 Z" />
+    <path
+        android:fillColor="#00695C"
+        android:pathData="M42,60 L58,60 A2,2 0 0 1 60,62 A2,2 0 0 1 58,64 L42,64 A2,2 0 0 1 40,62 A2,2 0 0 1 42,60 Z" />
+</vector>
