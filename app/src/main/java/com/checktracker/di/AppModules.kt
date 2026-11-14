@@ -31,7 +31,7 @@ val domainModule = module {
     factory { AddCategoryUseCase(get()) }
     factory { ObserveBudgetUseCase(get()) }
     factory { SetBudgetUseCase(get()) }
-    factory { ExportExpensesUseCase(get()) }
+    factory { ExportExpensesUseCase(get(), get(), get()) }
 }
 
 val viewModelModule = module {

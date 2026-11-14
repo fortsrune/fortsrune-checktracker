@@ -55,7 +55,7 @@ class StatsViewModel(
 
     // Общий поток состояния: пересчитывается при изменении любых входных данных
     private val stateFlow: StateFlow<StatsUiState> = combine(
-        observeExpensesUseCase(periodStart(), Long.MAX_VALUE),
+        observeExpensesUseCase(0L, Long.MAX_VALUE),
         observeCategoriesUseCase(),
         observeCurrencyUseCase(),
         rates,
@@ -90,8 +90,11 @@ class StatsViewModel(
         currentRates: Map<String, Double>,
         currentPeriod: StatsPeriod,
     ): StatsUiState {
-        // Переводим все расходы в выбранную валюту
-        val converted = expenses.map { expense ->
+        // Оставляем только расходы текущего периода и переводим их в выбранную валюту
+        val periodStartMillis = periodStart(currentPeriod)
+        val converted = expenses
+            .filter { it.timestamp >= periodStartMillis }
+            .map { expense ->
             expense.copy(
                 amountMinor = convertMinor(
                     amountMinor = expense.amountMinor,

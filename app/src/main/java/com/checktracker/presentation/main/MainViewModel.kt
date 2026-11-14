@@ -104,7 +104,7 @@ class MainViewModel(
         val balanceMinor = initialBalanceText.replace(',', '.').toDoubleOrNull()
             ?.let { (it * 100).toLong() } ?: 0L
         viewModelScope.launch {
-            addAccountUseCase(Account(name = name.trim(), initialBalanceMinor = balanceMinor, currency = currency.code))
+            addAccountUseCase(Account(id = 0L, name = name.trim(), initialBalanceMinor = balanceMinor, currency = currency.code))
                 .onFailure { error -> _state.update { it.copy(error = error.message) } }
         }
     }
